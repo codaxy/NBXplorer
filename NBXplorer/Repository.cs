@@ -960,16 +960,18 @@ namespace NBXplorer
 				{
 					if (kv.Value == null)
 						continue;
+
+					var hIndex = GetHighestPathIndex(tx, trackedSource.DerivationStrategy, kv.Key);
+					int highestGenerated = hIndex.SelectInt(0) ?? -1;
+					if (highestGenerated < kv.Value.Value)
+						hIndex.Insert(0, kv.Value.Value);
+
 					var index = GetAvailableKeysIndex(tx, trackedSource.DerivationStrategy, kv.Key);
 					bool needRefill = CleanUsed(kv.Value.Value, index);
 					index = GetReservedKeysIndex(tx, trackedSource.DerivationStrategy, kv.Key);
 					needRefill |= CleanUsed(kv.Value.Value, index);
 					if (needRefill)
 					{
-						var hIndex = GetHighestPathIndex(tx, trackedSource.DerivationStrategy, kv.Key);
-						int highestGenerated = hIndex.SelectInt(0) ?? -1;
-						if (highestGenerated < kv.Value.Value)
-							hIndex.Insert(0, kv.Value.Value);
 						var toGenerate = GetAddressToGenerateCount(tx, trackedSource.DerivationStrategy, kv.Key);
 						RefillAvailable(tx, trackedSource.DerivationStrategy, kv.Key, toGenerate);
 					}
