@@ -17,7 +17,6 @@ using NBXplorer.Logging;
 using NBXplorer.Configuration;
 using Newtonsoft.Json.Linq;
 using static NBXplorer.TrackedTransaction;
-using System.Runtime.InteropServices.ComTypes;
 
 namespace NBXplorer
 {
@@ -913,16 +912,6 @@ namespace NBXplorer
 								var index = info.GetIndex();
 								RemoveKeyRange(0, index, availableIndex);
 								RemoveKeyRange(0, index, reservedIndex);
-								//var bytes = availableIndex.SelectBytes(index);
-								//if (bytes != null)
-								//{
-								//	availableIndex.RemoveKey(index);
-								//}
-								//bytes = reservedIndex.SelectBytes(index);
-								//if (bytes != null)
-								//{
-								//	reservedIndex.RemoveKey(index);
-								//}
 							}
 						}
 						var ms = new MemoryStream();
