@@ -384,6 +384,27 @@ namespace NBXplorer
 				return tx.SelectForwardStartsWith<string, byte[]>(TableName, PrimaryKey).Skip(n).Select(c => (c.Key, c.Value)).ToArray();
 			}
 
+			public (long Key, byte[] Value)[] SelectRange(long fromKey, long toKey, bool includeStartFromKey)
+			{
+				var list = new List<(long Key, byte[] Value)>();
+				foreach (var r in tx.SelectForwardStartFrom<string, byte[]>(TableName, $"{PrimaryKey}-{fromKey:D20}", includeStartFromKey))
+				{
+					if (!r.Exists || r.Value == null) continue;
+					var key = ExtractLong(r.Key);
+					if (key > toKey) break;
+					list.Add((key, r.Value));
+				}
+				return list.ToArray();
+			}
+
+			private long ExtractLong(string key)
+			{
+				var span = key.AsSpan();
+				var sep = span.LastIndexOf('-');
+				span = span.Slice(sep + 1);
+				return long.Parse(span);
+			}
+
 			public int Count()
 			{
 				return tx.SelectForwardStartsWith<string, byte[]>(TableName, PrimaryKey).Count();
@@ -1226,16 +1247,8 @@ namespace NBXplorer
 								var availableIndex = GetAvailableKeysIndex(tx, s.DerivationStrategy, info.Feature);
 								var reservedIndex = GetReservedKeysIndex(tx, s.DerivationStrategy, info.Feature);
 								var index = info.GetIndex();
-								var bytes = availableIndex.SelectBytes(index);
-								if (bytes != null)
-								{
-									availableIndex.RemoveKey(index);
-								}
-								bytes = reservedIndex.SelectBytes(index);
-								if (bytes != null)
-								{
-									reservedIndex.RemoveKey(index);
-								}
+								RemoveKeyRange(0, index, availableIndex);
+								RemoveKeyRange(0, index, reservedIndex);
 							}
 						}
 						var ms = new MemoryStream();
@@ -1248,6 +1261,17 @@ namespace NBXplorer
 				}
 				tx.Commit();
 			});
+		}
+
+		private int RemoveKeyRange(long fromKey, long toKey, Index index)
+		{
+			var removed = 0;
+			foreach (var entry in index.SelectRange(fromKey, toKey, true))
+			{
+				index.RemoveKey((int)entry.Key);
+				removed++;
+			}
+			return removed;
 		}
 
 		internal Task Prune(TrackedSource trackedSource, List<TrackedTransaction> prunable)
