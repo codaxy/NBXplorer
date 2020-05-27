@@ -17,6 +17,7 @@ using NBXplorer.Logging;
 using NBXplorer.Configuration;
 using Newtonsoft.Json.Linq;
 using static NBXplorer.TrackedTransaction;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace NBXplorer
 {
@@ -213,6 +214,19 @@ namespace NBXplorer
 						.Where(r => r.Exists && r.Value != null)
 						.Select(r => (ExtractLong(r.Key), r.Value))
 						.ToArray();
+			}
+
+			public (long Key, byte[] Value)[] SelectRange(long fromKey, long toKey, bool includeStartFromKey)
+			{
+				var list = new List<(long Key, byte[] Value)>();
+				foreach (var r in tx.SelectForwardStartFrom<string, byte[]>(TableName, $"{PrimaryKey}-{fromKey:D20}", includeStartFromKey))
+				{
+					if (!r.Exists || r.Value == null) continue;
+					var key = ExtractLong(r.Key);
+					if (key > toKey) break;
+					list.Add((key, r.Value));
+				}
+				return list.ToArray();
 			}
 
 			private long ExtractLong(string key)
@@ -897,16 +911,18 @@ namespace NBXplorer
 								var availableIndex = GetAvailableKeysIndex(tx, s.DerivationStrategy, info.Feature);
 								var reservedIndex = GetReservedKeysIndex(tx, s.DerivationStrategy, info.Feature);
 								var index = info.GetIndex();
-								var bytes = availableIndex.SelectBytes(index);
-								if (bytes != null)
-								{
-									availableIndex.RemoveKey(index);
-								}
-								bytes = reservedIndex.SelectBytes(index);
-								if (bytes != null)
-								{
-									reservedIndex.RemoveKey(index);
-								}
+								RemoveKeyRange(0, index, availableIndex);
+								RemoveKeyRange(0, index, reservedIndex);
+								//var bytes = availableIndex.SelectBytes(index);
+								//if (bytes != null)
+								//{
+								//	availableIndex.RemoveKey(index);
+								//}
+								//bytes = reservedIndex.SelectBytes(index);
+								//if (bytes != null)
+								//{
+								//	reservedIndex.RemoveKey(index);
+								//}
 							}
 						}
 						var ms = new MemoryStream();
@@ -919,6 +935,17 @@ namespace NBXplorer
 				}
 				tx.Commit();
 			});
+		}
+
+		private int RemoveKeyRange(long fromKey, long toKey, Index index)
+		{
+			var removed = 0;
+			foreach (var entry in index.SelectRange(fromKey, toKey, true))
+			{
+				index.RemoveKey((int)entry.Key);
+				removed++;
+			}
+			return removed;
 		}
 
 		internal Task Prune(TrackedSource trackedSource, List<TrackedTransaction> prunable)
